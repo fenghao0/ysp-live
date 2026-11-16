@@ -118,6 +118,15 @@ wait_for_health() {
     done
     return 1
 }
+restore_previous_container() {
+    [ -n "$OLD_CONTAINER_BACKUP" ] || return 0
+    docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || :
+    if docker inspect "$OLD_CONTAINER_BACKUP" >/dev/null 2>&1; then
+        docker rename "$OLD_CONTAINER_BACKUP" "$CONTAINER_NAME" &&
+            docker start "$CONTAINER_NAME" >/dev/null 2>&1
+    fi
+}
+
 do_install() {
     echo "===================================================================="
     echo "  ysp-live 9.8-TMXK 安装 / 更新"
@@ -126,6 +135,7 @@ do_install() {
     mkdir -p "$INSTALL_BASE" "$PROJECT_DIR" || return 1
 
     CONTAINER_ID=$(docker ps -aq -f "name=^/$CONTAINER_NAME$" | head -n 1)
+    OLD_CONTAINER_BACKUP=""
     if [ -n "$CONTAINER_ID" ]; then
         echo "[1/5] 检查并备份现有数据..."
         backup_existing_data || return 1
@@ -137,32 +147,46 @@ do_install() {
     download_and_stage || return 1
     echo "[3/5] 检查 Docker Compose 配置..."
     (cd "$PROJECT_DIR" && compose config >/dev/null) || {
-        say_error "Compose 配置检查失败，旧容器尚未删除。"
+        say_error "Compose 配置检查失败，旧容器尚未停止。"
         return 1
     }
 
     if [ -n "$CONTAINER_ID" ]; then
-        echo "[4/5] 替换旧容器（数据已备份）..."
-        docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || {
-            say_error "无法移除旧容器，已中止启动。"
+        OLD_CONTAINER_BACKUP="ysp-live-rollback-$(date +%Y%m%d-%H%M%S)"
+        echo "[4/5] 暂停旧容器并保留回滚副本..."
+        docker stop "$CONTAINER_NAME" >/dev/null 2>&1 || {
+            say_error "无法停止旧容器，已中止更新。"
+            return 1
+        }
+        docker rename "$CONTAINER_NAME" "$OLD_CONTAINER_BACKUP" || {
+            docker start "$CONTAINER_NAME" >/dev/null 2>&1 || :
+            say_error "无法保留旧容器回滚副本，已中止更新。"
             return 1
         }
     else
         echo "[4/5] 构建并启动容器..."
     fi
 
-    (cd "$PROJECT_DIR" && compose up -d --build) || {
-        say_error "容器构建或启动失败。数据备份仍保留，请查看 docker logs $CONTAINER_NAME。"
+    if ! (cd "$PROJECT_DIR" && compose up -d --build); then
+        say_error "新容器构建或启动失败，正在尝试恢复旧容器..."
+        restore_previous_container
+        echo "数据备份保留在：$INSTALL_BASE/backups/"
         return 1
-    }
+    fi
+
     echo "[5/5] 等待健康检查..."
     if wait_for_health; then
         say_ok "ysp-live 已启动，健康接口响应正常。"
+        if [ -n "$OLD_CONTAINER_BACKUP" ]; then
+            docker rm -f "$OLD_CONTAINER_BACKUP" >/dev/null 2>&1 || :
+        fi
         show_links
         return 0
     fi
-    say_error "容器已执行启动，但 /health 在 60 秒内未响应。"
+
+    say_error "新容器的 /health 在 60 秒内未响应，正在尝试恢复旧容器..."
     docker logs --tail 80 "$CONTAINER_NAME" 2>&1
+    restore_previous_container
     echo "数据备份保留在：$INSTALL_BASE/backups/"
     return 1
 }

@@ -53,7 +53,7 @@ socket.getaddrinfo = new_getaddrinfo
 # ==========================================
 
 urllib .request .install_opener (urllib .request .build_opener (urllib .request .ProxyHandler ({}))) 
-__version__ ='9.8.2-TMXK'
+__version__ ='9.8.3-TMXK'
 AUTHOR_COMMUNITY ='https://t.me/+rgxyQeDLtjcxM2U1'
 AUTHOR_CHANNEL ='https://t.me/tmxktg'
 AUTHOR_COMMUNITY_NAME ='大亨分享'
@@ -3158,14 +3158,14 @@ def trigger_background_refresh (ch ):
             build_playlist (ch ,holdback =True )
     threading .Thread (target =coalesce_refresh ,args =(ch .slug ,_do ),daemon =True ).start ()
 CHANNEL_MAP :dict [str ,Channel ]={c [0 ]:Channel (*c )for c in DEFAULT_CHANNELS }
-FORCE_BK ={'cctv11','cctv12','cctv14','cctv15','cctv16','cctv17','cctvfyjc','cctvdyjc','cctvhjjc'}
+FORCE_BK = {'cctv11','cctv12','cctv14','cctv15','cctv16','cctv17','cctvfyjc','cctvdyjc','cctvhjjc'} | {c[0] for c in DEFAULT_CHANNELS if c[0].endswith('ws')}
 for _s in FORCE_BK :
     if _s in CHANNEL_MAP :
         CHANNEL_MAP [_s ].mode ='bk'
 server_port :int =8767 
 server_start_time =time .time ()
 CHANNEL_MAP :dict [str ,Channel ]={c [0 ]:Channel (*c )for c in DEFAULT_CHANNELS }
-FORCE_BK ={'cctv11','cctv12','cctv14','cctv15','cctv16','cctv17','cctvfyjc','cctvdyjc','cctvhjjc'}
+FORCE_BK = {'cctv11','cctv12','cctv14','cctv15','cctv16','cctv17','cctvfyjc','cctvdyjc','cctvhjjc'} | {c[0] for c in DEFAULT_CHANNELS if c[0].endswith('ws')}
 for _s in FORCE_BK :
     if _s in CHANNEL_MAP :
         CHANNEL_MAP [_s ].mode ='bk'

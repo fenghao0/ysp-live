@@ -3013,11 +3013,12 @@ def jce_refresh(ch):
         ch.last_error = ''
     return True
 def bk_refresh(ch):
-    global_flow_limiter.wait_slot()
     now = time.time()
     blocked_until = float(getattr(ch, 'bk_blocked_until', 0.0) or 0.0)
     if now < blocked_until:
         raise RuntimeError('BK upstream cooldown %.0fs' % (blocked_until - now))
+    global_flow_limiter.wait_slot()
+    now = time.time()
     if now - ch.bk_urls_time > BK_URL_TTL or not ch.bk_urls:
         ch.bk_urls = bk_playurls(ch.sid, ch.pid, ch.defn)
         ch.bk_urls_time = now

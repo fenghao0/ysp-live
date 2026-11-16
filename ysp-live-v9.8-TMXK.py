@@ -3028,6 +3028,8 @@ def bk_refresh(ch):
     for attempt in range(2):
         retry_expired_urls = False
         saw_forbidden = False
+        saw_403 = False
+        saw_429 = False
         for url in list(ch.bk_urls):
             try:
                 playlist = fetch_abs_playlist(url)
@@ -3044,9 +3046,12 @@ def bk_refresh(ch):
                 last_err = 'HTTPError: HTTP %s' % exc.code
                 if exc.code == 403:
                     saw_forbidden = True
+                    saw_403 = True
                 elif exc.code in (401, 404):
                     retry_expired_urls = True
                 elif exc.code == 429:
+                    saw_forbidden = True
+                    saw_429 = True
                     retry_after = exc.headers.get('Retry-After') if exc.headers else None
                     delay = 60.0
                     if retry_after:
@@ -3066,9 +3071,11 @@ def bk_refresh(ch):
         # 403 means access denied, not proof that the signed URL expired.
         # Do not hammer bkliveinfo by repeatedly resolving a denied URL.
         if saw_forbidden:
-            if last_status == 403:
+            if saw_403:
                 ch.bk_blocked_until = time.time() + 180.0
                 log('[%s] BK 返回 HTTP 403，按上游拒绝处理，冷却180秒；不重复刷新地址' % ch.slug, min_interval=30.0)
+            elif saw_429 and not ch.bk_blocked_until:
+                ch.bk_blocked_until = time.time() + 60.0
             break
         if attempt == 0 and retry_expired_urls:
             try:

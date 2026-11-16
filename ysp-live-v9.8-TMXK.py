@@ -53,7 +53,7 @@ socket.getaddrinfo = new_getaddrinfo
 # ==========================================
 
 urllib .request .install_opener (urllib .request .build_opener (urllib .request .ProxyHandler ({}))) 
-__version__ ='9.8.3-TMXK'
+__version__ ='9.8.4-TMXK'
 AUTHOR_COMMUNITY ='https://t.me/+rgxyQeDLtjcxM2U1'
 AUTHOR_CHANNEL ='https://t.me/tmxktg'
 AUTHOR_COMMUNITY_NAME ='大亨分享'
@@ -379,6 +379,14 @@ def is_session_core_http_400 (lower :str )->bool :
     return has_http_400 (lower )and any ((needle in lower for needle in ('app/start','live/v1/01','live/v1/02','vdn','heartbeat')))
 def is_control_plane_http_400 (lower :str )->bool :
     return has_http_400 (lower )and any ((needle in lower for needle in ('app/start','dictionary','app event','page event','cloud_get','cloud get','cloud_register','cloud register','device info','heartbeat','index','drm config','version config','live/v1/01','live/v1/02','vdn','collect report')))
+def is_device_identity_http_400(message: str) -> bool:
+    lower = (message or '').lower()
+    return has_http_400(lower) and any(
+        marker in lower for marker in (
+            'app/start', 'cloud_get', 'cloud get', 'cloud_register',
+            'cloud register', 'device info', 'heartbeat'
+        )
+    )
 def is_session_invalidating_error (message :str )->bool :
     lower =message .lower ()
     return 'app/start'in lower or 'decrypt'in lower or 'session_key'in lower or ('missing encrypted session key'in lower )or is_session_core_http_400 (lower )or ('live/v1/01 http 400'in lower )or ('live/v1/01 http 401'in lower )or ('live/v1/01 http 403'in lower )or ('live/v1/02 http 400'in lower )or ('live/v1/02 http 401'in lower )or ('live/v1/02 http 403'in lower )or ('vdn http 400'in lower )or ('vdn http 401'in lower )or ('vdn http 403'in lower )or ('内部错误'in lower )or ('no usable url'in lower )or ('missing videos'in lower )
@@ -1285,7 +1293,7 @@ class Resolver :
                 entry =self .refresh_channel_controlled (channel )
             except YsptpError as err :
                 err_text =str (err )
-                if 'HTTP 400'in err_text and self .rotate_device_on_400 (channel +':'+err_text [:60 ]):
+                if is_device_identity_http_400(err_text) and self .rotate_device_on_400(channel +':'+err_text [:60 ]):
                     try :
                         entry =self .refresh_channel_controlled (channel )
                     except Exception :
@@ -2806,6 +2814,7 @@ class Channel :
         self .last_pdt =''
         self .bk_urls =[]
         self .bk_urls_time =0.0 
+        self .bk_blocked_until =0.0
         self .bk_playlist =''
         self ._starting =False 
         self .last_built_playlist =''
@@ -3003,39 +3012,79 @@ def jce_refresh(ch):
         ch.jce_live_media_end = rows[-1][1] + rows[-1][2]
         ch.last_error = ''
     return True
-def bk_refresh (ch ):
-    global_flow_limiter .wait_slot ()
-    now =time .time ()
-    if now -ch .bk_urls_time >BK_URL_TTL or not ch .bk_urls :
-        ch .bk_urls =bk_playurls (ch .sid ,ch .pid ,ch .defn )
-        ch .bk_urls_time =now 
-        log (f'[{ch .slug }] bkliveinfo 备用通道就绪 ({len (ch .bk_urls )} 地址)',min_interval =60.0 )
-    last_err =''
-    for attempt in range (2 ):
-        for u in list (ch .bk_urls ):
-            try :
-                pl =fetch_abs_playlist (u )
-                if '#EXTM3U'not in pl :
-                    continue 
-                with ch .lock :
-                    ch .bk_playlist =pl 
-                    ch .last_error =''
-                return True 
-            except urllib .error .HTTPError as e :
-                last_err ='HTTPError: HTTP %s'%e .code 
-                continue 
-            except Exception as e :
-                last_err ='%s: %s'%(type (e ).__name__ ,e )
-        if attempt ==0 :
-            try :
-                ch .bk_urls =bk_playurls (ch .sid ,ch .pid ,ch .defn )
-                ch .bk_urls_time =time .time ()
-                log (f'[{ch .slug }] {defn_label (ch .defn )} 地址已过期，已重新拉取',min_interval =10.0 )
-            except Exception :
-                pass 
-    ch .bk_urls =[]
-    ch .bk_urls_time =0 
-    raise RuntimeError (last_err [:120 ]or 'bk playlist failed')
+def bk_refresh(ch):
+    global_flow_limiter.wait_slot()
+    now = time.time()
+    blocked_until = float(getattr(ch, 'bk_blocked_until', 0.0) or 0.0)
+    if now < blocked_until:
+        raise RuntimeError('BK upstream cooldown %.0fs' % (blocked_until - now))
+    if now - ch.bk_urls_time > BK_URL_TTL or not ch.bk_urls:
+        ch.bk_urls = bk_playurls(ch.sid, ch.pid, ch.defn)
+        ch.bk_urls_time = now
+        log('[%s] bkliveinfo 备用通道就绪 (%d 地址)' % (ch.slug, len(ch.bk_urls)), min_interval=60.0)
+
+    last_err = ''
+    last_status = 0
+    for attempt in range(2):
+        retry_expired_urls = False
+        saw_forbidden = False
+        for url in list(ch.bk_urls):
+            try:
+                playlist = fetch_abs_playlist(url)
+                if '#EXTM3U' not in playlist:
+                    last_err = 'invalid playlist response'
+                    continue
+                with ch.lock:
+                    ch.bk_playlist = playlist
+                    ch.last_error = ''
+                    ch.bk_blocked_until = 0.0
+                return True
+            except urllib.error.HTTPError as exc:
+                last_status = int(exc.code)
+                last_err = 'HTTPError: HTTP %s' % exc.code
+                if exc.code == 403:
+                    saw_forbidden = True
+                elif exc.code in (401, 404):
+                    retry_expired_urls = True
+                elif exc.code == 429:
+                    retry_after = exc.headers.get('Retry-After') if exc.headers else None
+                    delay = 60.0
+                    if retry_after:
+                        try:
+                            delay = max(delay, float(retry_after))
+                        except (ValueError, TypeError):
+                            try:
+                                from email.utils import parsedate_to_datetime
+                                delay = max(delay, parsedate_to_datetime(retry_after).timestamp() - time.time())
+                            except (ValueError, TypeError, OverflowError):
+                                pass
+                    ch.bk_blocked_until = time.time() + max(60.0, min(delay, 900.0))
+                    saw_forbidden = True
+            except Exception as exc:
+                last_err = '%s: %s' % (type(exc).__name__, exc)
+
+        # 403 means access denied, not proof that the signed URL expired.
+        # Do not hammer bkliveinfo by repeatedly resolving a denied URL.
+        if saw_forbidden:
+            if last_status == 403:
+                ch.bk_blocked_until = time.time() + 180.0
+                log('[%s] BK 返回 HTTP 403，按上游拒绝处理，冷却180秒；不重复刷新地址' % ch.slug, min_interval=30.0)
+            break
+        if attempt == 0 and retry_expired_urls:
+            try:
+                ch.bk_urls = bk_playurls(ch.sid, ch.pid, ch.defn)
+                ch.bk_urls_time = time.time()
+                log('[%s] BK 返回401/404，重新获取播放地址后仅重试一次' % ch.slug, min_interval=10.0)
+                continue
+            except Exception as exc:
+                last_err = 'bkliveinfo refresh: %s' % exc
+        break
+
+    if last_status == 401:
+        ch.bk_blocked_until = time.time() + 60.0
+    elif last_status == 429 and not getattr(ch, 'bk_blocked_until', 0.0):
+        ch.bk_blocked_until = time.time() + 60.0
+    raise RuntimeError((last_err[:120] or 'bk playlist failed'))
 def refresh_once(ch):
     if not ch.refresh_lock.acquire(blocking=False):
         return False

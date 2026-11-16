@@ -3072,7 +3072,7 @@ def bk_refresh(ch):
         # Do not hammer bkliveinfo by repeatedly resolving a denied URL.
         if saw_forbidden:
             if saw_403:
-                ch.bk_blocked_until = time.time() + 180.0
+                ch.bk_blocked_until = max(float(getattr(ch, 'bk_blocked_until', 0.0) or 0.0), time.time() + 180.0)
                 log('[%s] BK 返回 HTTP 403，按上游拒绝处理，冷却180秒；不重复刷新地址' % ch.slug, min_interval=30.0)
             elif saw_429 and not ch.bk_blocked_until:
                 ch.bk_blocked_until = time.time() + 60.0

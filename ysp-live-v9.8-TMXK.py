@@ -3736,7 +3736,7 @@ def init_resolver ():
             retry_count +=1 
             log (f'[系统] 设备协议初始化第 {retry_count } 次重试中: {e }，4K/高码率频道暂走 1080p 回退',min_interval =10.0 )
             set_resolver_ready (False )
-            if 'HTTP 400'in str (e ):
+            if is_device_identity_http_400(str(e)):
                 resolver .rotate_device_on_400 ('init:'+str (e )[:60 ])
             backoff =min (15.0 * (1.5 ** min (retry_count - 1 ,4 )),60.0 )
             time .sleep (backoff )

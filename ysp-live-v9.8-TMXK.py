@@ -53,7 +53,7 @@ socket.getaddrinfo = new_getaddrinfo
 # ==========================================
 
 urllib .request .install_opener (urllib .request .build_opener (urllib .request .ProxyHandler ({}))) 
-__version__ ='9.8-TMXK'
+__version__ ='9.8.1-TMXK'
 AUTHOR_COMMUNITY ='https://t.me/+rgxyQeDLtjcxM2U1'
 AUTHOR_CHANNEL ='https://t.me/tmxktg'
 AUTHOR_NOTICE =f'''📢 公告
@@ -2261,6 +2261,14 @@ class DeadHostError (RuntimeError ):
 class JceRateLimited(RuntimeError):
     pass
 
+def defn_label(defn):
+    d = (defn or '').strip().lower()
+    if d == 'fhd':
+        return '1080p'
+    if d == 'shd':
+        return '720p'
+    return defn or '1080p'
+
 class JceRequestGate:
     """Serialize JCE URL-resolution calls and share upstream throttle cooldown."""
     def __init__(self, clock=time.monotonic, sleep=time.sleep):
@@ -2299,7 +2307,7 @@ class JceRequestGate:
                 self.sleep(delay)
             if active is not None and not active():
                 raise RuntimeError('低码率频道已空闲，取消排队请求')
-            self.next_request = self.clock() + 2.0
+            self.next_request = self.clock() + 3.0
             try:
                 result = fn()
             except urllib.error.HTTPError as exc:
@@ -2864,9 +2872,10 @@ def parse_jce_live_window(text, base_url, now, with_target=False):
                 if stamp + duration <= previous_end:
                     raise RuntimeError('JCE non-increasing segment end')
                 gap = stamp - previous_end
-                # Bound overlap both absolutely and relative to BOTH neighbors.
-                # Tiny segments do not inherit an unsafe blanket 50ms tolerance.
-                overlap_limit = min(0.15, 0.05 * min(previous_duration, duration))
+                # Permit small encoder/PDT rounding overlaps, bounded both absolutely
+                # and relative to BOTH neighboring segments. Larger timeline conflicts
+                # remain rejected; jce_refresh suppresses outbound PDT when overlap exists.
+                overlap_limit = min(0.5, 0.10 * min(previous_duration, duration))
                 if gap < -overlap_limit - 1e-7:
                     raise RuntimeError('JCE overlapping PDT (%.3fs)' % -gap)
                 # PDT maps wall time, not media timestamp continuity. Positive gaps
@@ -2897,6 +2906,7 @@ def parse_jce_live_window(text, base_url, now, with_target=False):
     return (selected, target) if with_target else selected
 
 def jce_fetch(ch):
+    global_flow_limiter.wait_slot()
     if time.time() < getattr(ch, 'jce_media_blocked_until', 0):
         raise JceRateLimited('JCE media cooldown')
     now = time.time()

@@ -53,12 +53,14 @@ socket.getaddrinfo = new_getaddrinfo
 # ==========================================
 
 urllib .request .install_opener (urllib .request .build_opener (urllib .request .ProxyHandler ({}))) 
-__version__ ='9.8.1-TMXK'
+__version__ ='9.8.2-TMXK'
 AUTHOR_COMMUNITY ='https://t.me/+rgxyQeDLtjcxM2U1'
 AUTHOR_CHANNEL ='https://t.me/tmxktg'
+AUTHOR_COMMUNITY_NAME ='大亨分享'
+AUTHOR_CHANNEL_NAME ='TMXKの分享'
 AUTHOR_NOTICE =f'''📢 公告
-社区：大亨分享 ({AUTHOR_COMMUNITY})
-频道：TMXKの分享 ({AUTHOR_CHANNEL})
+社区：{AUTHOR_COMMUNITY_NAME} ({AUTHOR_COMMUNITY})
+频道：{AUTHOR_CHANNEL_NAME} ({AUTHOR_CHANNEL})
 ⚠️ 其他任何分发渠道均非作者本人！'''
 AK ='9f5c54c4ed0e50109b800f7e28fec205'
 RSA_PUBLIC_KEY_B64 ='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkKeLy4ywWLSnBkwRyqYgF3HMIj05V5uuh5HjyEsZOWnu1NHu3jPQv3sr32wwQNYv5qapsNXmNgLUDHtgHZxqPQAYXltjSRc0qhcD286t62wOIHId8zXS3s1Jy4rgU4qjQWzI9rp/1sE0pMsmwTaJa4zuJ5iz8VwF8Av5oJ1k+HxY+/HLnjNlW1hmWLpuDYmkZYuAoTHa1VGeHQh9FEKI8ZcL3GTQphShUoC+Kg3P1hGUVTtCYapmzPS5lkAdwebuzwvTCfGiTErYZCnPBUSeV7BVlgjtLYIi29KvF0a8FHsJMfe/UdHcyW/RihsIYOtDQcRRpFGXyPXbVrzFJse24QIDAQAB'
@@ -2872,10 +2874,11 @@ def parse_jce_live_window(text, base_url, now, with_target=False):
                 if stamp + duration <= previous_end:
                     raise RuntimeError('JCE non-increasing segment end')
                 gap = stamp - previous_end
-                # Permit small encoder/PDT rounding overlaps, bounded both absolutely
-                # and relative to BOTH neighboring segments. Larger timeline conflicts
-                # remain rejected; jce_refresh suppresses outbound PDT when overlap exists.
-                overlap_limit = min(0.5, 0.10 * min(previous_duration, duration))
+                # Permit bounded encoder-clock/PDT drift. When any overlap is accepted,
+                # jce_refresh omits EXT-X-PROGRAM-DATE-TIME for the session because the
+                # wall-clock-to-segment mapping is ambiguous. Fully covered segments and
+                # overlaps beyond this absolute/relative bound remain rejected.
+                overlap_limit = min(1.5, 0.30 * min(previous_duration, duration))
                 if gap < -overlap_limit - 1e-7:
                     raise RuntimeError('JCE overlapping PDT (%.3fs)' % -gap)
                 # PDT maps wall time, not media timestamp continuity. Positive gaps
@@ -3291,7 +3294,7 @@ def fetch_upstream_engine_playlist (canonical :str ,host :str ,proto :str ='http
             pass 
     return None 
 class Handler (BaseHTTPRequestHandler ):
-    server_version ='ysp-live/9.8-TMXK'
+    server_version =f'ysp-live/{__version__}'
     def log_message (self ,fmt ,*args ):
         pass 
     def _send (self ,code ,body ,ctype ='text/plain; charset=utf-8',head_only =False ,extra_headers =None ):
@@ -3343,7 +3346,7 @@ class Handler (BaseHTTPRequestHandler ):
             active_slots =len ([s for s in (resolver .state .sessions .values ()if resolver else [])if s and resolver .app_session_fresh (s )])
             health_data ={
             "ok":True ,
-            "version":"9.8-TMXK",
+            "version":__version__,
             "author_community":AUTHOR_COMMUNITY ,
             "author_channel":AUTHOR_CHANNEL ,
             "notice":"其他渠道均非作者发布！",
@@ -3395,10 +3398,10 @@ class Handler (BaseHTTPRequestHandler ):
             info =[]
             now =time .time ()
             info .append ("====================================================")
-            info .append (f"ysp-live v9.8-TMXK 诊断报告 (运行时间: {int (now -server_start_time )}s)")
+            info .append (f"ysp-live v{__version__} 诊断报告 (运行时间: {int (now -server_start_time )}s)")
             info .append ("📢 首发地址")
-            info .append (f"社区：Gary's Club ({AUTHOR_COMMUNITY})")
-            info .append (f"频道：Gary's Club Channel ({AUTHOR_CHANNEL})")
+            info .append (f"社区：{AUTHOR_COMMUNITY_NAME} ({AUTHOR_COMMUNITY})")
+            info .append (f"频道：{AUTHOR_CHANNEL_NAME} ({AUTHOR_CHANNEL})")
             info .append ("⚠️ 其他任何分发渠道均非作者本人！")
             info .append ("====================================================")
             engine_status ='就绪'if resolver_ready ()else '未就绪(1080p自动回退)'
@@ -3758,7 +3761,7 @@ def main ():
     global resolver ,server_port ,engine_port ,global_channel_dir ,global_ts_cache 
     if os.name == 'nt':
         os.system('') 
-    ap =argparse .ArgumentParser (description ='央视频全频道直播代理（ysp-live v9.8-TMXK）')
+    ap =argparse .ArgumentParser (description =f'央视频全频道直播代理（ysp-live v{__version__}）')
     ap .add_argument ('port',nargs ='?',type =int ,default =8767 ,help ='监听端口 (默认 8767)')
     ap .add_argument ('--bind',default ='0.0.0.0',help ='监听地址 (默认 0.0.0.0)')
     ap .add_argument ('--data-dir',default =os .environ .get ('YSP_DATA_DIR',''),help ='数据持久化目录 (默认由 YSP_DATA_DIR 环境变量或脚本所在目录决定)')
@@ -3830,7 +3833,7 @@ def main ():
     RESET = '\033[0m'
 
     log ('====================================================================')
-    log (f'ysp-live v9.8-TMXK 启动成功: {channels_count } 个独立频道 (央视 {c_yangshi } 路, 卫视 {c_weishi } 路)')
+    log (f'ysp-live v{__version__} 启动成功: {channels_count } 个独立频道 (央视 {c_yangshi } 路, 卫视 {c_weishi } 路)')
     log (f'全频道订阅:   http://localhost:{args .port }/all.m3u')
     log (f'系统健康度:   http://localhost:{args .port }/health')
     log (f'实时诊断日志: http://localhost:{args .port }/diag')

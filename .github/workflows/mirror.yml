@@ -1,0 +1,65 @@
+name: Mirror tmxk2020/ysp-live
+
+on:
+  schedule:
+    # 每 6 小时轮询（UTC 19/01/07/13 = 北京 03:00 / 09:00 / 15:00 / 21:00）
+    # 上游无更新时不会产生任何新提交
+    - cron: '0 19,1,7,13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mirror-ysp-live
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror upstream branches and tags
+        env:
+          TARGET: ${{ github.repository }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          REMOTE="https://x-access-token:${TOKEN}@github.com/${TARGET}.git"
+
+          git init mirror-ws
+          cd mirror-ws
+          git remote add upstream https://github.com/tmxk2020/ysp-live.git
+          git fetch --prune --tags upstream '+refs/heads/*:refs/remotes/upstream/*'
+
+          echo "== upstream branches =="
+          git for-each-ref --format='  %(refname:strip=3)  %(objectname:short)' refs/remotes/upstream
+
+          # 其余分支：与上游同名同步（main 由下面单独处理）
+          for ref in $(git for-each-ref --format='%(refname:strip=3)' refs/remotes/upstream); do
+            case "$ref" in
+              HEAD|main) continue ;;
+            esac
+            echo "-> branch $ref"
+            git push --force "$REMOTE" "refs/remotes/upstream/${ref}:refs/heads/${ref}" || true
+          done
+
+          # 标签
+          git push --force --tags "$REMOTE" || true
+
+          # main = 上游源码 + 本仓库的 .github 目录（保留自动同步脚本本身）
+          git checkout -B main refs/remotes/upstream/main
+          git fetch "$REMOTE" main --depth=1
+          git checkout FETCH_HEAD -- .github 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "Sync workflow from mirror repo"
+          fi
+          git push --force "$REMOTE" main
+
+          # 备用的纯镜像分支，方便对比
+          git push --force "$REMOTE" "refs/remotes/upstream/main:refs/heads/mirrored-main" || true
+
+          echo "== mirror complete =="

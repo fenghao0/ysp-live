@@ -1,5 +1,5 @@
 #!/bin/sh
-# ysp-live one-click installer and manager
+# ysp-live 一键安装与管理脚本
 
 CONTAINER_NAME="ysp-live"
 ROOT_DIR="/root/ysp-live"
@@ -26,7 +26,7 @@ get_local_ip() {
 show_links() {
     ip_addr=$(get_local_ip)
     line
-    say "ysp-live service addresses"
+    say "ysp-live 服务地址"
     printf '  Playlist: http://%s:%s/all.m3u\n' "$ip_addr" "$PORT"
     printf '  Health:   http://%s:%s/health\n' "$ip_addr" "$PORT"
     printf '  Diagnose: http://%s:%s/diag\n' "$ip_addr" "$PORT"
@@ -39,7 +39,7 @@ docker_compose_cmd() {
     elif command -v docker-compose >/dev/null 2>&1; then
         COMPOSE="docker-compose"
     else
-        say "ERROR: Docker Compose was not found. Install Docker Compose first."
+        say "错误：未找到 Docker Compose，请先安装 Docker Compose。"
         return 1
     fi
     return 0
@@ -50,31 +50,31 @@ fetch_source() {
     ZIP_FILE="$ROOT_DIR/ysp-live-latest.zip"
     rm -rf "$TMP_DIR"
     mkdir -p "$TMP_DIR" || return 1
-    say "[1/4] Downloading the latest source from GitHub..."
+    say "[1/4] 正在从 GitHub 下载最新项目文件..."
     if command -v curl >/dev/null 2>&1; then
         curl -fL --connect-timeout 20 --retry 2 "$REPO_ZIP" -o "$ZIP_FILE" || return 1
     elif command -v wget >/dev/null 2>&1; then
         wget -O "$ZIP_FILE" "$REPO_ZIP" || return 1
     else
-        say "ERROR: curl or wget is required."
+        say "错误：系统需要安装 curl 或 wget。"
         return 1
     fi
-    command -v unzip >/dev/null 2>&1 || { say "ERROR: unzip is required."; return 1; }
+    command -v unzip >/dev/null 2>&1 || { say "错误：系统需要安装 unzip。"; return 1; }
     unzip -q "$ZIP_FILE" -d "$TMP_DIR" || return 1
     SOURCE_DIR="$TMP_DIR/ysp-live-main"
-    [ -f "$SOURCE_DIR/Dockerfile" ] || { say "ERROR: Dockerfile is missing from the downloaded source."; return 1; }
-    [ -f "$SOURCE_DIR/docker-compose.yml" ] || { say "ERROR: docker-compose.yml is missing."; return 1; }
-    [ -f "$SOURCE_DIR/install.sh" ] || say "WARNING: install.sh is not included in the source archive."
+    [ -f "$SOURCE_DIR/Dockerfile" ] || { say "错误：下载的项目中缺少 Dockerfile。"; return 1; }
+    [ -f "$SOURCE_DIR/docker-compose.yml" ] || { say "错误：下载的项目中缺少 docker-compose.yml。"; return 1; }
+    [ -f "$SOURCE_DIR/install.sh" ] || say "提示：下载包中未包含 install.sh。"
     return 0
 }
 
 do_install() {
-    command -v docker >/dev/null 2>&1 || { say "ERROR: Docker was not found. Install Docker first."; return 1; }
+    command -v docker >/dev/null 2>&1 || { say "错误：未检测到 Docker，请先安装 Docker。"; return 1; }
     docker_compose_cmd || return 1
     mkdir -p "$ROOT_DIR" || return 1
-    fetch_source || { say "ERROR: Source download or extraction failed. Existing installation was not changed."; return 1; }
+    fetch_source || { say "错误：项目下载或解压失败，原有安装未作任何更改。"; return 1; }
 
-    # Keep user data outside the temporary download and restore it after updating.
+    # 用户数据独立备份，更新完成后再恢复。
     OLD_PROJECT="$ROOT_DIR/project-old-$(date +%Y%m%d%H%M%S)"
     if [ -d "$DATA_DIR" ]; then
         mkdir -p "$ROOT_DIR/data-backup"
@@ -94,21 +94,21 @@ do_install() {
     mkdir -p "$PROJECT_DIR/data"
     cd "$PROJECT_DIR" || return 1
 
-    say "[2/4] Building the latest image while the current service remains available..."
+    say "[2/4] 正在构建新版镜像，当前服务暂时保持运行..."
     $COMPOSE build
     result=$?
     if [ "$result" -ne 0 ]; then
-        say "ERROR: Image build failed. The running container was not stopped."
+        say "错误：镜像构建失败，当前运行中的容器未停止。"
         rm -rf "$PROJECT_DIR"
         [ -d "$OLD_PROJECT" ] && mv "$OLD_PROJECT" "$PROJECT_DIR"
         return 1
     fi
-    say "[3/4] Restarting the service with the new version..."
+    say "[3/4] 正在使用新版本重启服务..."
     docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
     $COMPOSE up -d --remove-orphans
     result=$?
     if [ "$result" -ne 0 ]; then
-        say "ERROR: New container failed to start. Restoring the previous project version..."
+        say "错误：新版容器启动失败，正在恢复上一版本..."
         FAILED_PROJECT="$ROOT_DIR/project-failed-$(date +%Y%m%d%H%M%S)"
         mv "$PROJECT_DIR" "$FAILED_PROJECT" 2>/dev/null
         [ -d "$OLD_PROJECT" ] && mv "$OLD_PROJECT" "$PROJECT_DIR"
@@ -117,7 +117,7 @@ do_install() {
         fi
         return 1
     fi
-    say "[4/4] Waiting briefly for the service to start..."
+    say "[4/4] 正在等待服务启动..."
     sleep 3
     if command -v curl >/dev/null 2>&1; then
         curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1
@@ -127,9 +127,9 @@ do_install() {
         health=$?
     fi
     if [ "$health" -eq 0 ]; then
-        say "Deployment completed. Health endpoint responded successfully."
+        say "部署完成：健康检查接口响应正常。"
     else
-        say "Container was started, but health endpoint did not respond yet. Check logs."
+        say "容器已启动，但健康检查接口暂未响应，请查看运行日志。"
     fi
     show_links
 }
@@ -148,11 +148,11 @@ health_check() {
 }
 
 do_uninstall() {
-    say "This removes the ysp-live container and project files."
-    say "User data will be kept unless you choose the complete removal option."
-    printf 'Continue? [y/N]: '
+    say "此操作将删除 ysp-live 容器和项目文件。"
+    say "默认保留用户数据；如需彻底删除，请选择“彻底卸载”。"
+    printf '确认继续吗？[y/N]：'
     read answer
-    case "$answer" in y|Y|yes|YES) ;; *) say "Cancelled."; return 0 ;; esac
+    case "$answer" in y|Y|yes|YES) ;; *) say "已取消操作。"; return 0 ;; esac
     docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
     if [ -d "$DATA_DIR" ]; then
         mkdir -p "$ROOT_DIR/data-backup"
@@ -162,35 +162,35 @@ do_uninstall() {
         cd / 2>/dev/null
         rm -rf "$PROJECT_DIR"
     fi
-    say "Container and project files removed. Saved data is kept in $ROOT_DIR/data-backup."
+    say "容器和项目文件已删除，备份数据保存在：$ROOT_DIR/data-backup"
 }
 
 do_purge() {
-    say "WARNING: This permanently deletes the container, image, project files, and saved data."
-    printf 'Type DELETE to confirm: '
+    say "警告：此操作将永久删除容器、镜像、项目文件及所有保存的数据，且无法恢复！"
+    printf '请输入 DELETE 确认彻底删除：'
     read answer
-    [ "$answer" = "DELETE" ] || { say "Cancelled."; return 0; }
+    [ "$answer" = "DELETE" ] || { say "已取消操作。"; return 0; }
     docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
     docker image rm "ysp-live:20261125-TMXK" >/dev/null 2>&1 || true
     cd / 2>/dev/null
     rm -rf "$ROOT_DIR"
-    say "Complete removal finished."
+    say "彻底卸载完成。"
 }
 
 menu() {
     while :; do
         line
-        say "ysp-live installer and management"
+        say "ysp-live 安装与管理工具"
         line
-        say "1) Install or update to the latest GitHub version"
-        say "2) Show service addresses"
-        say "3) View live container logs"
-        say "4) Check service health"
-        say "5) Uninstall (keep saved data)"
-        say "6) Complete removal (delete saved data too)"
-        say "0) Exit"
+        say "1) 安装或更新到 GitHub 最新版本"
+        say "2) 查看服务访问地址"
+        say "3) 查看容器实时日志"
+        say "4) 检查服务运行状态"
+        say "5) 卸载程序（保留用户数据）"
+        say "6) 彻底卸载（同时删除所有用户数据）"
+        say "0) 退出"
         line
-        printf 'Select an option [0-6]: '
+        printf '请输入选项 [0-6]：'
         read choice
         case "$choice" in
             1) do_install ;;
@@ -199,14 +199,14 @@ menu() {
             4) health_check ;;
             5) do_uninstall ;;
             6) do_purge ;;
-            0) say "Exit."; return 0 ;;
-            *) say "Invalid selection. Please enter 0-6." ;;
+            0) say "已退出。"; return 0 ;;
+            *) say "无效选项，请输入 0-6。" ;;
         esac
     done
 }
 
 if [ "$(id -u 2>/dev/null)" != "0" ]; then
-    say "ERROR: Run this script as root."
+    say "错误：请使用 root 用户运行此脚本。"
     exit 1
 fi
 menu

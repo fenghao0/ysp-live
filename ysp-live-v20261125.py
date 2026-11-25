@@ -3421,9 +3421,9 @@ def trigger_background_refresh (ch ):
     threading .Thread (target =coalesce_refresh ,args =(ch .slug ,_do ),daemon =True ).start ()
 CHANNEL_MAP :dict [str ,Channel ]={c [0 ]:Channel (*c )for c in DEFAULT_CHANNELS }
 # JCE 在部分频道/网络下容易遇到限流或接口异常。
-# CCTV6 改为 JCE 优先：当前设备日志显示 BK 持续 HTTP 403，由双线路逻辑在 JCE 失败时再回退 BK；其他已验证频道策略保持不变。
+# 仅对已验证需要 BK 的少数频道强制使用 BK。卫视频道默认 JCE 优先：当前诊断中多路 BK 返回 HTTP 403，
+# 强制 BK 会在首次播放时经历多轮请求与地址刷新，造成明显首播等待；JCE 失败时仍由 refresh_once 自动回退 BK。
 FORCE_BK ={'cctv11','cctv12','cctv14','cctv15','cctv16','cctv17','cctvfyjc','cctvdyjc','cctvhjjc'}
-FORCE_BK.update(slug for slug, name, _sid, _pid, _defn in DEFAULT_CHANNELS if '卫视' in name)
 for _s in FORCE_BK:
     if _s in CHANNEL_MAP:
         CHANNEL_MAP[_s].mode = 'bk'

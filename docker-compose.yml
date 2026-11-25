@@ -1,6 +1,6 @@
 services:
   ysp-live:
-    image: ysp-live:20261126-TMXK
+    image: ysp-live:20261127-TMXK
     build:
       context: .
       dockerfile: Dockerfile

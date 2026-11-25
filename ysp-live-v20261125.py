@@ -34,7 +34,7 @@ import urllib .request
 import uuid 
 from collections import deque 
 urllib .request .install_opener (urllib .request .build_opener (urllib .request .ProxyHandler ({}))) 
-__version__ = '20261126'
+__version__ = '20261127'
 AUTHOR_COMMUNITY ='https://t.me/+rgxyQeDLtjcxM2U1'
 AUTHOR_CHANNEL ='https://t.me/tmxktg'
 AUTHOR_NOTICE =f'''📢 TMXK 首发与更新
@@ -3421,8 +3421,8 @@ def trigger_background_refresh (ch ):
     threading .Thread (target =coalesce_refresh ,args =(ch .slug ,_do ),daemon =True ).start ()
 CHANNEL_MAP :dict [str ,Channel ]={c [0 ]:Channel (*c )for c in DEFAULT_CHANNELS }
 # JCE 在部分频道/网络下容易遇到限流或接口异常。
-# CCTV6 与卫视频道优先使用已验证更稳定的 bkliveinfo；其他频道保留 JCE 优先。
-FORCE_BK ={'cctv6','cctv11','cctv12','cctv14','cctv15','cctv16','cctv17','cctvfyjc','cctvdyjc','cctvhjjc'}
+# CCTV6 改为 JCE 优先：当前设备日志显示 BK 持续 HTTP 403，由双线路逻辑在 JCE 失败时再回退 BK；其他已验证频道策略保持不变。
+FORCE_BK ={'cctv11','cctv12','cctv14','cctv15','cctv16','cctv17','cctvfyjc','cctvdyjc','cctvhjjc'}
 FORCE_BK.update(slug for slug, name, _sid, _pid, _defn in DEFAULT_CHANNELS if '卫视' in name)
 for _s in FORCE_BK:
     if _s in CHANNEL_MAP:
@@ -3847,10 +3847,14 @@ class Handler (BaseHTTPRequestHandler ):
                 cached_pl =ch .last_built_playlist 
                 cached_source = ch.last_built_source
                 cached_age =now_ts -ch .last_built_time 
-            if cached_pl and cached_age <15.0 and ('#EXTM3U'in cached_pl ):
+                refresh_thread_alive =bool(ch.thread and ch.thread.is_alive())
+                refresh_recent =bool(ch.last_ok and (now_ts - ch.last_ok) <= max(10.0, REFRESH_INTERVAL * 2.5))
+            # 只复用仍在后台持续刷新的新鲜播放列表。
+            # 空闲线程已退出或上游刷新停滞时，不能把旧 m3u8 直接交给首次播放请求；
+            # 否则首次点击拿到过期分片，第二次重试才触发真正拉流。
+            if (cached_pl and cached_age <5.0 and refresh_thread_alive and refresh_recent
+                    and '#EXTM3U' in cached_pl):
                 self.send_live_playlist(ch, cached_source, cached_pl, head_only, cached=True)
-                if cached_age >6.0 :
-                    trigger_background_refresh (ch )
                 return 
             ch .register_client (self .connection )
             try :

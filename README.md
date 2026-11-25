@@ -15,6 +15,12 @@ ysp-live 是一款面向电视直播的轻量级直播网关，整合多线路�
 - **运行状态与诊断**：提供健康状态、频道状态及运行诊断信息，便于了解服务情况。
 - **Docker 运行**：支持 Docker 环境及 host 网络模式，适用于 OpenWrt 和常见 Linux 设备。
 
+## 项目热度
+
+以下曲线展示项目在 GitHub 上的 Star 增长情况，数据由 Star History 自动生成：
+
+[![Star History Chart](https://api.star-history.com/svg?repos=tmxk2020/ysp-live&type=Date)](https://star-history.com/#tmxk2020/ysp-live&Date)
+
 ## 一键部署
 
 在终端（SSH）中运行以下命令，即可通过 Docker 一键安装或更新到 GitHub 最新版本：
@@ -39,6 +45,14 @@ sh -c "$(wget -O- https://raw.githubusercontent.com/tmxk2020/ysp-live/main/insta
 - **Telegram 频道**：[TMXKの分享](https://t.me/tmxktg)
 - **项目源码**：[GitHub - tmxk2020/ysp-live](https://github.com/tmxk2020/ysp-live)
 
-## 感谢
+<details>
+<summary><sub>特别鸣谢</sub></summary>
 
-- **Gary's Club**：[Telegram 群组](https://t.me/+rgxyQeDLtjcxM2U1)
+<sub>感谢 Gary's Club 提供交流与支持：[Telegram 群组](https://t.me/+rgxyQeDLtjcxM2U1)</sub>
+
+</details>
+
+## 免责声明
+
+本项目仅供技术学习、个人研究及合法合规的技术交流使用。项目提供的是直播网关与播放管理功能，不提供、不存储也不保证任何第三方直播内容的合法性、准确性、持续可用性或完整性。用户应自行确认所使用的直播信号及内容来源具有合法授权，并遵守所在地法律法规及相关平台服务条款。因用户自行配置、传播、使用本项目或第三方内容而产生的任何责任与风险，由用户自行承担。项目按现状提供，作者不对服务中断、线路变化、播放效果或数据损失作出保证。
+

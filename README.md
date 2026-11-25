@@ -1,105 +1,60 @@
-# 🚀 ysp-live-docker (软路由优化版)
+# ysp-live｜央视频直播网关（20261125-TMXK）
 
-一个基于 Docker 与 Python 构建的轻量级流媒体代理与直播源处理工具。针对软路由（OpenWrt）环境深度优化，完美解决复杂的 NAT/网桥痛点，实现开箱即用与一键智能化部署。
+基于你提供的 20261124 原始代码升级，保留 Python + Node.js 引擎架构、TS 缓存、按需拉流、后台刷新与 Docker host 网络模式。
 
----
+## 本次修复重点
 
-## ✨ 核心亮点
+- CCTV6 改为优先走 bkliveinfo（BK）线路，避免因未命中高码率设备频道映射而只走不稳定的 JCE 路径。
+- 所有卫视频道默认优先 BK；其余频道保留原有线路策略。
+- JCE 出现限流、超时、HTTP 错误等普通异常时，不再只识别 `DeadHostError`，而是自动尝试 BK。
+- BK 不可用时自动尝试 JCE，保留双线路互相兜底，避免某条线路短时异常就直接黑屏。
+- 保留原代码的按需拉流、缓存、并发刷新和高码率设备协议逻辑；不虚构 CCTV6 的高码率 live_id。
 
-- **🌐 极致网络兼容（Host 模式）**：放弃传统的 Bridge 桥接网络，直接复用宿主机网络栈，彻底告别“无视频、连接超时、组播不通”等玄学问题。
-- **🛡️ 稳定 DNS 容灾**：内置多线公共 DNS 强制指定，彻底解决软路由环境下常见的域名解析抖动与 `[Errno -3]` 报错。
-- **⚡ V8 内存深度调优**：针对 Node.js 运行时进行垃圾回收（GC）与老生代内存限制，长期运行不溢出、切台丝滑。
-- **🤖 智能一键部署**：内置智能检测脚本，自动识别运行状态，避免重复部署，让小白也能秒级上手。
-- **📦 极简轻量化**：基于 Alpine Linux 基础镜像构建，资源占用极低，稳定运行不卡顿。
-- **💾 数据持久化**：支持挂载本地存储，配置与核心数据实时保存，容器更新升级不丢数据。
+## 一键安装 / 更新
 
----
-
-## ⚡ 一键智能部署（推荐）
-
-在你的 OpenWrt 软路由或其他 Linux 终端中，直接复制并运行以下一行命令即可完成自动化检测、下载与部署：
+在 OpenWrt 或 Linux 终端执行（沿用本仓库原有 `install.sh`，不替换安装脚本）：
 
 ```bash
 sh -c "$(wget -O- https://raw.githubusercontent.com/tmxk2020/ysp-live/main/install.sh)"
 ```
 
-> *注：脚本会自动检测容器运行状态。若已运行会友好提示；若未部署或需更新，会自动拉取最新源码并完成清理重建。*
-
----
-
-## 🛠 手动部署指南（Docker Compose）
-
-如果你喜欢手动管理，也可以使用 `docker-compose` 进行部署：
-
-1. **编写 `docker-compose.yml`**：
-
-```yaml
-services:
-  ysp-live:
-    image: ysp-live:9.5.1
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: ysp-live
-    restart: unless-stopped
-    network_mode: host
-    dns:
-      - 223.5.5.5     # 阿里 DNS（国内解析极快）
-      - 119.29.29.29  # 腾讯 DNS
-      - 1.1.1.1       # 国际备用
-    volumes:
-      - ./data:/app/data
-    environment:
-      - TZ=Asia/Shanghai
-      - PYTHONUNBUFFERED=1
-      - YSP_DATA_DIR=/app/data
-      - NODE_OPTIONS="--max-old-space-size=256 --optimize-for-size"  # 优化 V8 内存与垃圾回收
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-```
-
-2. **构建并后台启动**：
+## 手动部署
 
 ```bash
 docker compose up -d --build
 ```
 
----
+默认使用 host 网络，监听 `8767` 端口。原有数据目录 `./data` 保留。
 
-## ❓ 常见问题与解决办法
+## 订阅与诊断
 
-### 1. 启动时提示容器名冲突 (`Conflict. The container name is already in use`)
-- **原因**：本地已经存在同名的旧容器未清理。
-- **解决办法**：
-  ```bash
-  docker rm -f ysp-live
-  docker compose up -d
-  ```
+- 全频道订阅：`http://设备IP:8767/all.m3u`
+- 健康检查：`http://设备IP:8767/health`
+- 实时诊断：`http://设备IP:8767/diag`
 
-### 2. 访问端口冲突或无法访问
-- **原因**：默认端口 `8767` 可能已被软路由上的其他服务占用。
-- **解决办法**：因为采用了 `network_mode: host`，服务直接绑定在宿主机端口。如需修改，请调整代码中的服务监听逻辑或避开该端口。
+## 频道首帧测试
 
----
+容器构建后，可先单独测试 CCTV6 和几个卫视频道：
 
-## 🔗 相关链接与社区
+```bash
+docker exec ysp-live python3 /app/check_v20261125_startup.py --base-url http://127.0.0.1:8767 cctv6 bjws jsws dfws hnws
+```
 
-- **官方网站**：[tmxk.pp.ua](https://tmxk.pp.ua)
-- **联系我们 / 交流反馈**：[tmxk.pp.ua/d/10-lian-xi-wo-men](https://tmxk.pp.ua/d/10-lian-xi-wo-men)
+测试全部频道：
 
----
+```bash
+docker exec ysp-live python3 /app/check_v20261125_startup.py --base-url http://127.0.0.1:8767
+```
 
-## 📢 首发地址
+测试脚本使用 FFmpeg 尝试解码首帧。只有实际解码出首帧才算通过；HTTP 返回 200 或拿到 m3u8 不代表一定能播放。
 
-- **频道**：[TMXKの分享](https://t.me/tmxktg)
+## TMXK 项目与反馈
 
----
+- 项目仓库：[tmxk2020/ysp-live](https://github.com/tmxk2020/ysp-live)
+- 社区：[大亨分享](https://tmxk.pp.ua)
+- Telegram 频道：[TMXKの分享](https://t.me/tmxktg)
+- 反馈交流：[联系我们](https://tmxk.pp.ua/d/10-lian-xi-wo-men)
 
-## 🎉 原代码地址
+## 说明
 
-- **频道**：[Gary's Club Channel](https://t.me/garysclubchannel)
-
-
+本次静态检查覆盖 Python 语法、频道映射一致性和双线路故障切换逻辑。实际频道是否可播放仍需在部署网络环境中执行首帧测试；不同线路可能受地区、运营商和上游限流影响。

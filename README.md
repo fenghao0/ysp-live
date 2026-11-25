@@ -15,6 +15,14 @@ ysp-live 是一款面向电视直播的轻量级直播网关，整合多线路�
 - **运行状态与诊断**：提供健康状态、频道状态及运行诊断信息，便于了解服务情况。
 - **Docker 运行**：支持 Docker 环境及 host 网络模式，适用于 OpenWrt 和常见 Linux 设备。
 
+## 一键部署
+
+在终端（SSH）中运行以下命令，即可通过 Docker 一键安装或更新到 GitHub 最新版本：
+
+```sh
+sh -c "$(wget -O- https://raw.githubusercontent.com/tmxk2020/ysp-live/main/install.sh)"
+```
+
 ## 访问入口
 
 | 功能 | 地址 |

@@ -47,7 +47,7 @@ def main():
     base = args.base_url.rstrip("/")
     op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with op.open(base+"/health", timeout=8) as response:
-        if json.load(response).get("version") != "20261125":
+        if json.load(response).get("version") != "20261126":
             ap.error("测试端口运行的不是 20261125")
     with op.open(base+"/all.m3u", timeout=8) as response:
         urls = [line.strip() for line in response.read().decode().splitlines()

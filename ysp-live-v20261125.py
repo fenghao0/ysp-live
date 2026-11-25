@@ -34,7 +34,7 @@ import urllib .request
 import uuid 
 from collections import deque 
 urllib .request .install_opener (urllib .request .build_opener (urllib .request .ProxyHandler ({}))) 
-__version__ = '20261125'
+__version__ = '20261126'
 AUTHOR_COMMUNITY ='https://t.me/+rgxyQeDLtjcxM2U1'
 AUTHOR_CHANNEL ='https://t.me/tmxktg'
 AUTHOR_NOTICE =f'''📢 TMXK 首发与更新
@@ -2754,7 +2754,7 @@ TVG_IDS ={
 }
 LOGO_BASE ='https://garysclub.sharewithyou.dpdns.org/logos/ysp-live-logos'
 UA ='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
-REFRESH_INTERVAL =10 
+REFRESH_INTERVAL =5 
 IDLE_TIMEOUT =120 
 LINK_IDLE_TIMEOUT =15.0 
 WINDOW =300 
@@ -3278,14 +3278,20 @@ def bk_refresh (ch ):
             except Exception as e :
                 last_err ='%s: %s'%(type (e ).__name__ ,e )
         if attempt ==0 :
+            log (f'[{ch.slug}] BK 播放列表拉取失败: {last_err}，刷新备用地址后重试', min_interval=10.0)
             try :
-                ch .bk_urls =bk_playurls (ch .sid ,ch .pid ,ch .defn )
-                ch .bk_urls_time =time .time ()
-                log (f'[{ch .slug }] {defn_label (ch .defn )} 地址已过期，已重新拉取',min_interval =10.0 )
-            except Exception :
-                pass 
+                refreshed_urls =bk_playurls (ch .sid ,ch .pid ,ch .defn )
+                if refreshed_urls:
+                    ch .bk_urls =refreshed_urls
+                    ch .bk_urls_time =time .time ()
+                    log (f'[{ch.slug}] BK 备用地址已更新 ({len(refreshed_urls)} 地址)', min_interval=10.0)
+                else:
+                    last_err =last_err + '; refreshed URL list is empty'
+            except Exception as refresh_error:
+                last_err =last_err + '; URL refresh: %s: %s' % (type(refresh_error).__name__, refresh_error)
     ch .bk_urls =[]
     ch .bk_urls_time =0 
+    log (f'[{ch.slug}] BK 连续拉取失败: {last_err[:160]}', min_interval=10.0)
     raise RuntimeError (last_err [:120 ]or 'bk playlist failed')
 def refresh_once (ch ,is_foreground :bool =False ):
     # 两条线路双向兜底：JCE 任意普通异常都尝试 BK；BK 不可用时再尝试 JCE。

@@ -25,12 +25,12 @@ ysp-live 是一款面向电视直播的轻量级直播网关，整合多线路�
 
 将地址中的“设备IP”替换为运行 ysp-live 的设备局域网 IP。
 
-## TMXK 项目推广
+## 更多内容请关注
 
-- **项目主页 / 社区**：[大亨分享](https://tmxk.pp.ua)
+- **大亨分享**：[项目主页 / 社区](https://tmxk.pp.ua)
 - **Telegram 频道**：[TMXKの分享](https://t.me/tmxktg)
 - **项目源码**：[GitHub - tmxk2020/ysp-live](https://github.com/tmxk2020/ysp-live)
 
-## 原代码推广群组
+## 感谢
 
-- **Telegram 群组**：[Gary's Club](https://t.me/+rgxyQeDLtjcxM2U1)
+- **Gary's Club**：[Telegram 群组](https://t.me/+rgxyQeDLtjcxM2U1)

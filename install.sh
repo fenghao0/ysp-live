@@ -27,9 +27,9 @@ show_links() {
     ip_addr=$(get_local_ip)
     line
     say "ysp-live 服务地址"
-    printf '  Playlist: http://%s:%s/all.m3u\n' "$ip_addr" "$PORT"
-    printf '  Health:   http://%s:%s/health\n' "$ip_addr" "$PORT"
-    printf '  Diagnose: http://%s:%s/diag\n' "$ip_addr" "$PORT"
+    printf '  播放列表： http://%s:%s/all.m3u\n' "$ip_addr" "$PORT"
+    printf '  健康检查： http://%s:%s/health\n' "$ip_addr" "$PORT"
+    printf '  诊断页面： http://%s:%s/diag\n' "$ip_addr" "$PORT"
     line
 }
 
